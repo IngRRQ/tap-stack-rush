@@ -1,0 +1,23 @@
+# Ejemplos de inserción (pegar en index.html)
+
+## 1) Donaciones (Ko-fi)
+<!-- Pega esto cerca del botón de 'Compartir' o en el menú -->
+<a href="https://ko-fi.com/TU_USUARIO" target="_blank" rel="noopener" style="display:inline-block;padding:8px 12px;border-radius:10px;background:#ffd89e;color:#222;font-weight:800;text-decoration:none">☕ Invítame un café</a>
+
+## 2) Banner (portal publicitario)
+<!-- Coloca el snippet EXACTO que te dé tu plataforma dentro del div #ad-container -->
+<div id="ad-container"></div>
+<!-- Ejemplo: -->
+<!-- <script src="https://tu-red-publicitaria.example/sdk.js"></script> -->
+<!-- <script>window.myAds && myAds.mount('#ad-container');</script> -->
+
+## 3) Interstitial entre partidas
+<!-- Llama al método de “ad break” justo al entrar a Game Over -->
+<!-- Dentro de la función gameOver() añade algo como: -->
+<script>
+  // pseudo‑código genérico:
+  if (window.adBreak) { adBreak(); } // usa el método real de tu SDK
+</script>
+
+## 4) Privacidad
+Añade un enlace visible a PRIVACY-POLICY.html si insertas cualquier tercero.

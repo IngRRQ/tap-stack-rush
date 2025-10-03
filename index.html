@@ -1,0 +1,503 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1, user-scalable=no" />
+<title>Tap Stack Rush</title>
+<meta name="description" content="Juego hyper-casual de stacking. Toca o presiona espacio para alinear los bloques y subir la torre. Gratis y listo para web." />
+<style>
+  :root {
+    --bg: #0f1226;
+    --fg: #f6f7fb;
+    --accent: #7df9ff;
+    --muted: #9aa1ac;
+  }
+  * { box-sizing: border-box; }
+  html, body {
+    margin: 0; padding: 0;
+    background: radial-gradient(1200px 800px at 50% 10%, #1b1f3a, #0f1226 60%);
+    height: 100%; width: 100%; overflow: hidden;
+    font-family: system-ui, -apple-system, Segoe UI, Roboto, Inter, Ubuntu, "Helvetica Neue", Arial, "Noto Sans", "Apple Color Emoji", "Segoe UI Emoji";
+    color: var(--fg);
+  }
+  #wrap {
+    position: fixed; inset: 0; display: grid; grid-template-rows: 1fr auto;
+  }
+  #hud {
+    position: absolute; top: 12px; left: 12px; right: 12px; display: flex; align-items: center; justify-content: space-between;
+    z-index: 5; pointer-events:none;
+  }
+  .pill {
+    background: rgba(255,255,255,0.06);
+    border: 1px solid rgba(255,255,255,0.12);
+    border-radius: 999px; padding: 6px 12px; font-weight: 600; letter-spacing: .3px;
+    box-shadow: 0 6px 22px rgba(0,0,0,.25), inset 0 1px 0 rgba(255,255,255,.06);
+    pointer-events:auto;
+  }
+  #score { font-size: 20px; }
+  #best { font-size: 14px; color: var(--muted); margin-left: 8px; }
+  #controls { display: flex; gap: 8px; }
+  button.icon {
+    background: rgba(255,255,255,0.06); color: var(--fg); border: 1px solid rgba(255,255,255,0.12);
+    padding: 10px 12px; border-radius: 12px; cursor: pointer; font-weight: 600;
+    box-shadow: 0 6px 22px rgba(0,0,0,.25), inset 0 1px 0 rgba(255,255,255,.06);
+  }
+  button.icon:hover { transform: translateY(-1px); }
+  button.icon:active { transform: translateY(1px); }
+  #canvas { display: block; width: 100vw; height: 100vh; }
+  #menu, #gameover {
+    position: absolute; inset: 0; display: grid; place-items: center; z-index: 4; pointer-events:none;
+  }
+  .card {
+    pointer-events:auto;
+    background: rgba(255,255,255,0.06);
+    border: 1px solid rgba(255,255,255,0.12);
+    border-radius: 16px;
+    padding: 20px;
+    width: min(92vw, 460px);
+    backdrop-filter: blur(6px);
+    box-shadow: 0 24px 80px rgba(0,0,0,.45), inset 0 1px 0 rgba(255,255,255,.06);
+    text-align: center;
+  }
+  .title { font-size: 28px; margin: 8px 0 6px; font-weight: 800; letter-spacing: .6px; }
+  .subtitle { font-size: 14px; color: var(--muted); margin-bottom: 16px; }
+  .cta {
+    display: inline-block; margin-top: 8px;
+    background: linear-gradient(120deg, #6be4ff, #a1ffd6);
+    color: #0d1220; font-weight: 800; letter-spacing: .6px;
+    padding: 12px 16px; border-radius: 12px; cursor: pointer; border: none;
+    box-shadow: 0 10px 28px rgba(0,0,0,.3);
+  }
+  .cta:active { transform: translateY(1px); }
+  .row { display: flex; gap: 10px; justify-content: center; flex-wrap: wrap; }
+  .kpi { background: rgba(255,255,255,0.05); padding: 10px 12px; border-radius: 10px; border: 1px solid rgba(255,255,255,0.08); }
+  #ad-container {
+    position: absolute; bottom: 10px; left: 50%; transform: translateX(-50%);
+    width: min(728px, 92vw); min-height: 90px;
+    display: grid; place-items: center;
+    background: rgba(255,255,255,0.04); border: 1px dashed rgba(255,255,255,0.18);
+    border-radius: 12px; color: var(--muted);
+    z-index: 6;
+  }
+  #toast {
+    position: absolute; bottom: 120px; left: 50%; transform: translateX(-50%);
+    background: rgba(0,0,0,.65); color: white; padding: 10px 14px; border-radius: 999px;
+    font-weight: 700; letter-spacing: .4px; z-index: 6; opacity:0; transition: opacity .25s ease;
+  }
+  #toast.show { opacity:1; }
+  a.small { color: var(--accent); text-decoration: none; }
+</style>
+</head>
+<body>
+  <div id="wrap">
+    <canvas id="canvas" tabindex="0"></canvas>
+
+    <div id="hud">
+      <div class="pill"><span id="score">0</span> <span id="best"></span></div>
+      <div id="controls">
+        <button class="icon" id="btn-sound" aria-label="Sonido">🔊</button>
+        <button class="icon" id="btn-pause" aria-label="Pausa">⏸️</button>
+        <button class="icon" id="btn-restart" aria-label="Reiniciar">🔁</button>
+      </div>
+    </div>
+
+    <div id="menu" hidden>
+      <div class="card">
+        <div class="title">Tap Stack Rush</div>
+        <div class="subtitle">Toca o presiona <b>Espacio</b> para alinear los bloques.<br/>Suma puntos, encadena <b>¡Perfect!</b> y llega más alto.</div>
+        <div class="row">
+          <div class="kpi">✔️ Mobile & Desktop</div>
+          <div class="kpi">✔️ 60 FPS</div>
+          <div class="kpi">✔️ LocalStorage</div>
+        </div>
+        <button class="cta" id="btn-play">JUGAR</button>
+        <p style="margin-top:10px"><a class="small" href="#" id="how">¿Cómo se juega?</a></p>
+      </div>
+    </div>
+
+    <div id="gameover" hidden>
+      <div class="card">
+        <div class="title">¡Game Over!</div>
+        <div class="subtitle">Score: <b id="final-score">0</b> · Best: <b id="final-best">0</b></div>
+        <div class="row">
+          <button class="cta" id="btn-try">VOLVER A JUGAR</button>
+          <button class="icon" id="btn-share">Compartir</button>
+        </div>
+        <p class="subtitle" style="margin-top:10px">
+          💡 Monetiza: coloca un anuncio entre partidas. <a class="small" href="#" id="monetize-help">Ver cómo</a>
+        </p>
+      </div>
+    </div>
+
+    <div id="ad-container" aria-label="Espacio para anuncios">
+      <div>Zona de <b>ANUNCIO</b> (inserta código de tu red publicitaria aquí)</div>
+    </div>
+
+    <div id="toast"></div>
+  </div>
+
+<script>
+(() => {
+  const DPR = Math.max(1, Math.min(2, window.devicePixelRatio || 1));
+  const canvas = document.getElementById('canvas');
+  const ctx = canvas.getContext('2d');
+  const menu = document.getElementById('menu');
+  const gameover = document.getElementById('gameover');
+  const scoreEl = document.getElementById('score');
+  const bestEl = document.getElementById('best');
+  const finalScore = document.getElementById('final-score');
+  const finalBest = document.getElementById('final-best');
+  const btnPlay = document.getElementById('btn-play');
+  const btnTry = document.getElementById('btn-try');
+  const btnPause = document.getElementById('btn-pause');
+  const btnRestart = document.getElementById('btn-restart');
+  const btnSound = document.getElementById('btn-sound');
+  const btnShare = document.getElementById('btn-share');
+  const toast = document.getElementById('toast');
+  const how = document.getElementById('how');
+  const monetizeHelp = document.getElementById('monetize-help');
+
+  let W = 0, H = 0;
+  function resize() {
+    W = Math.floor(window.innerWidth * DPR);
+    H = Math.floor(window.innerHeight * DPR);
+    canvas.width = W; canvas.height = H;
+    canvas.style.width = (W / DPR) + 'px';
+    canvas.style.height = (H / DPR) + 'px';
+  }
+  window.addEventListener('resize', resize, {passive:true});
+  resize();
+
+  // Game state
+  const STATE = { MENU:0, PLAY:1, PAUSE:2, OVER:3 };
+  let state = STATE.MENU;
+
+  // Tower & Blocks
+  let baseY, baseHeight;
+  let stacks, moving, dir, speed, colorSeed, score, best, perfectStreak;
+  let particles = [];
+  let lastTime = 0;
+  let soundOn = true;
+
+  // Audio (WebAudio simple beeps)
+  const AudioCtx = window.AudioContext || window.webkitAudioContext;
+  let actx = null;
+  function playBeep(freq=440, time=0.06, type='sine', volume=0.2){
+    if(!soundOn) return;
+    if(!actx) actx = new AudioCtx();
+    const o = actx.createOscillator();
+    const g = actx.createGain();
+    o.type = type;
+    o.frequency.value = freq;
+    g.gain.value = volume;
+    o.connect(g); g.connect(actx.destination);
+    o.start();
+    o.stop(actx.currentTime + time);
+  }
+
+  function showMenu() {
+    state = STATE.MENU;
+    menu.hidden = false;
+    gameover.hidden = true;
+    updateBestLabel();
+    scoreEl.textContent = '0';
+  }
+
+  function restart() {
+    baseHeight = Math.floor(H * 0.06);
+    baseY = H - baseHeight;
+    stacks = [];
+    const w0 = Math.floor(Math.min(W * 0.6, 420 * DPR));
+    const x0 = Math.floor((W - w0)/2);
+    const y0 = baseY - baseHeight;
+    stacks.push({x:x0, y:y0, w:w0, h:baseHeight, color:colorFromSeed(0)});
+    moving = { x:x0, y:y0 - baseHeight, w:w0, h:baseHeight, color:colorFromSeed(1) };
+    dir = 1;
+    speed = Math.max(2.5*DPR, Math.min(6*DPR, Math.floor(W/240))); // adaptive
+    colorSeed = 2;
+    score = 0;
+    perfectStreak = 0;
+    particles.length = 0;
+    lastTime = performance.now();
+  }
+
+  function start() {
+    restart();
+    menu.hidden = true;
+    gameover.hidden = true;
+    state = STATE.PLAY;
+    scoreEl.textContent = '0';
+    loop(lastTime);
+  }
+
+  function gameOver() {
+    state = STATE.OVER;
+    finalScore.textContent = score;
+    best = Math.max(score, getBest());
+    setBest(best);
+    finalBest.textContent = best;
+    gameover.hidden = false;
+  }
+
+  function getBest(){ return Number(localStorage.getItem('tsr_best')||'0'); }
+  function setBest(v){ localStorage.setItem('tsr_best', String(v)); }
+  function updateBestLabel(){
+    const b = getBest();
+    bestEl.textContent = b>0 ? `· MEJOR: ${b}` : '';
+  }
+
+  function colorFromSeed(i){
+    // Smooth hue rotation
+    const hue = (i*26 + Math.floor(performance.now()/60)) % 360;
+    return `hsl(${hue} 90% 60%)`;
+  }
+
+  function drawBlock(b, shadow=true){
+    if(shadow){
+      ctx.fillStyle = 'rgba(0,0,0,.25)';
+      ctx.fillRect(b.x+4*DPR, b.y+6*DPR, b.w, b.h);
+    }
+    const grd = ctx.createLinearGradient(b.x, b.y, b.x, b.y+b.h);
+    grd.addColorStop(0, 'rgba(255,255,255,.35)');
+    grd.addColorStop(0.3, b.color);
+    grd.addColorStop(1, 'rgba(0,0,0,.35)');
+    ctx.fillStyle = grd;
+    roundRect(b.x, b.y, b.w, b.h, 8*DPR);
+  }
+
+  function roundRect(x,y,w,h,r){
+    ctx.beginPath();
+    ctx.moveTo(x+r, y);
+    ctx.arcTo(x+w, y, x+w, y+h, r);
+    ctx.arcTo(x+w, y+h, x, y+h, r);
+    ctx.arcTo(x, y+h, x, y, r);
+    ctx.arcTo(x, y, x+w, y, r);
+    ctx.closePath();
+    ctx.fill();
+  }
+
+  function spawnParticles(x, y, color){
+    for(let i=0;i<24;i++){
+      particles.push({
+        x, y,
+        vx: (Math.random()*2-1)*3*DPR,
+        vy: (-Math.random()*1.5-0.5)*3*DPR,
+        life: 0.6+Math.random()*0.4,
+        color,
+        age:0,
+        size: 2.5*DPR + Math.random()*2*DPR
+      });
+    }
+  }
+
+  function drawParticles(dt){
+    for(let i=particles.length-1;i>=0;i--){
+      const p = particles[i];
+      p.age += dt;
+      p.x += p.vx;
+      p.y += p.vy;
+      p.vy += 9.8*DPR*dt*0.9; // gravity
+      if(p.age>p.life) { particles.splice(i,1); continue; }
+      ctx.globalAlpha = Math.max(0, 1 - p.age/p.life);
+      ctx.fillStyle = p.color;
+      ctx.fillRect(p.x, p.y, p.size, p.size);
+      ctx.globalAlpha = 1;
+    }
+  }
+
+  function loop(now){
+    if(state !== STATE.PLAY) return;
+    const dt = Math.min(0.033, (now - lastTime)/1000);
+    lastTime = now;
+    update(dt);
+    render();
+    requestAnimationFrame(loop);
+  }
+
+  function update(dt){
+    // move current block
+    moving.x += dir * speed * 6; // speed factor
+    // bounce at edges
+    if(moving.x <= 0){ moving.x = 0; dir = 1; }
+    else if(moving.x + moving.w >= W){ moving.x = W - moving.w; dir = -1; }
+  }
+
+  function render(){
+    // background gradient
+    const gbg = ctx.createLinearGradient(0, 0, 0, H);
+    gbg.addColorStop(0, '#121633');
+    gbg.addColorStop(1, '#0b0e22');
+    ctx.fillStyle = gbg;
+    ctx.fillRect(0,0,W,H);
+
+    // baseline
+    ctx.fillStyle = 'rgba(255,255,255,.05)';
+    ctx.fillRect(0, baseY, W, baseHeight);
+
+    // draw stacks
+    for(const b of stacks){ drawBlock(b); }
+    // draw moving
+    drawBlock(moving);
+
+    drawParticles(1/60);
+
+    // Score hint
+    ctx.fillStyle = 'rgba(255,255,255,.8)';
+    ctx.font = `${Math.floor(22*DPR)}px system-ui,Segoe UI,Roboto`;
+    ctx.textAlign = 'center';
+    ctx.fillText(`${score}`, W/2, Math.max(40*DPR, baseY-12*DPR));
+  }
+
+  function place(){
+    if(state !== STATE.PLAY) return;
+    const last = stacks[stacks.length-1];
+
+    const overlapLeft = Math.max(last.x, moving.x);
+    const overlapRight = Math.min(last.x + last.w, moving.x + moving.w);
+    const overlap = overlapRight - overlapLeft;
+
+    if(overlap <= 0){
+      playBeep(120, 0.2, 'sawtooth', .12);
+      spawnParticles(moving.x + moving.w/2, moving.y + moving.h/2, 'rgba(255,80,80,.9)');
+      return gameOver();
+    }
+
+    // Perfect threshold
+    const perfectThreshold = Math.max(6*DPR, Math.floor(moving.w * 0.06));
+    const isPerfect = Math.abs(moving.x - last.x) <= perfectThreshold;
+
+    // trim the block
+    moving.w = overlap;
+    moving.x = overlapLeft;
+    moving.y = last.y - moving.h;
+    moving.color = colorFromSeed(colorSeed++);
+    stacks.push({...moving});
+    score++;
+    scoreEl.textContent = String(score);
+
+    if(isPerfect){
+      perfectStreak++;
+      playBeep(1320, 0.04, 'triangle', .18);
+      spawnParticles(moving.x + moving.w/2, moving.y + moving.h/2, 'rgba(160,255,180,.9)');
+      showToast(perfectStreak >= 3 ? 'Perfect x3! +ancho' : 'Perfect!');
+      if(perfectStreak >= 3){
+        moving.w += Math.floor(moving.w * 0.12);
+        moving.x -= Math.floor(moving.w * 0.06);
+        perfectStreak = 0;
+      }
+    } else {
+      perfectStreak = 0;
+      playBeep(880, 0.03, 'square', .16);
+    }
+
+    // new moving block
+    moving = { x: 0, y: moving.y - moving.h, w: stacks[stacks.length-1].w, h: baseHeight, color: colorFromSeed(colorSeed++) };
+    // direction from left or right alternates
+    dir = (stacks.length % 2 === 0) ? 1 : -1;
+    moving.x = dir > 0 ? 0 : (W - moving.w);
+
+    // increase difficulty slightly
+    speed = Math.min(speed + 0.15, 10 * DPR);
+  }
+
+  function pauseToggle(){
+    if(state === STATE.PLAY){
+      state = STATE.PAUSE;
+      btnPause.textContent = '▶️';
+      showToast('Pausa');
+    } else if(state === STATE.PAUSE){
+      state = STATE.PLAY;
+      btnPause.textContent = '⏸️';
+      lastTime = performance.now();
+      loop(lastTime);
+      showToast('Reanudar');
+    }
+  }
+
+  function showToast(txt){
+    toast.textContent = txt;
+    toast.classList.add('show');
+    clearTimeout(showToast._t);
+    showToast._t = setTimeout(()=> toast.classList.remove('show'), 900);
+  }
+
+  // Input
+  function onPress(e){
+    if(state === STATE.MENU){
+      start(); place(); return;
+    }
+    if(state === STATE.PLAY){
+      place(); return;
+    }
+    if(state === STATE.OVER){
+      start(); return;
+    }
+  }
+  window.addEventListener('pointerdown', onPress);
+  window.addEventListener('keydown', (e)=>{
+    if(e.code === 'Space' || e.code === 'Enter'){
+      e.preventDefault();
+      onPress(e);
+    } else if(e.code === 'KeyP'){
+      pauseToggle();
+    }
+  });
+
+  btnPlay.addEventListener('click', start);
+  btnTry.addEventListener('click', start);
+  btnRestart.addEventListener('click', ()=>{ if(state===STATE.PLAY||state===STATE.PAUSE){ restart(); showToast('Reiniciar'); }});
+  btnPause.addEventListener('click', pauseToggle);
+  btnSound.addEventListener('click', ()=>{
+    soundOn = !soundOn;
+    btnSound.textContent = soundOn ? '🔊' : '🔇';
+    showToast(soundOn ? 'Sonido ON' : 'Sonido OFF');
+  });
+
+  btnShare.addEventListener('click', async ()=>{
+    const text = `Acabo de hacer ${score} en Tap Stack Rush 🧱 ¡Inténtalo tú!`;
+    const shareData = { title: 'Tap Stack Rush', text, url: location.href };
+    try {
+      if(navigator.share){
+        await navigator.share(shareData);
+      } else {
+        await navigator.clipboard.writeText(text + " " + location.href);
+        showToast('Copiado al portapapeles');
+      }
+    } catch(e){ /* ignore */ }
+  });
+
+  how.addEventListener('click', (e)=>{
+    e.preventDefault();
+    alert("Juega así:\n1) Toca o presiona Espacio para detener el bloque.\n2) Debes alinearlo con el bloque anterior.\n3) Si no hay superposición, ¡pierdes!\nTip: Encadena PERFECT para ganar ancho extra.");
+  });
+
+  monetizeHelp.addEventListener('click', (e)=>{
+    e.preventDefault();
+    alert("Monetización web (pasos rápidos):\n\nA) Itch.io → Activa donaciones ('pay what you want').\nB) CrazyGames / GameMonetize → Publica y usa su SDK para anuncios entre partidas.\nC) GitHub Pages → Hostea gratis y añade botón de donación (Ko-fi/BuyMeACoffee).\n\nEn el código, usa el div #ad-container para insertar el snippet publicitario.\nPara intersticiales, llama a un 'break' entre Game Over y Reiniciar.");
+  });
+
+  // Visibility (auto-pause)
+  document.addEventListener('visibilitychange', ()=>{
+    if(document.hidden && state===STATE.PLAY){
+      pauseToggle();
+    }
+  });
+
+  // Boot
+  updateBestLabel();
+  showMenu();
+
+})();</script>
+
+<!-- Monetization placeholders -->
+<!-- 
+  Para anuncios con portales:
+  - CrazyGames: insertar su SDK y llamar a 'crazygames.SDK.gameplayStart()', 'gameplayStop()', y 'adBreak()' entre partidas.
+  - GameMonetize: pega el script que te proveen dentro de #ad-container o como interstitial.
+
+  Para donaciones:
+  - En itch.io activa 'Pay what you want' y añade un mensaje de soporte.
+  - O inserta un botón a Ko-fi/BuyMeACoffee aquí.
+-->
+</body>
+</html>

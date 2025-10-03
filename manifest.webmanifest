@@ -1,0 +1,9 @@
+{
+  "name": "Tap Stack Rush",
+  "short_name": "TSR",
+  "start_url": "./index.html",
+  "display": "standalone",
+  "background_color": "#0f1226",
+  "theme_color": "#0f1226",
+  "icons": []
+}
